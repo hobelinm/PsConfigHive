@@ -32,7 +32,58 @@ caller is identified automatically using Get-PSCallStack cmdlet or manually set 
 ## Design ##
 PSConfigHive is designed in layers as follows:
 
-Configuration is layered when using overrides as follows:
+```
+ __                          ________________    I   _________
+   \- Get-ConfigHive ------ |                |   N  |         |    ____ Local Disk
+ -- - Get-ConfigValue ----- |                |   T  |         |---/
+ -- - Get-CurrentHiveName - |  PSConfigHive  |-- E--| Storage |
+ -- - Get-RegisteredHives - |     Core       |-- R--|   IO    |-------- Remote Web Service
+ -- - New-ConfigHive ------ |    Module      |   F  | Adapter |
+ -- - Remove-ConfigHive --- |                |   A  |         |---
+ -- - Set-ConfigOVerride -- |                |   C  |         |   \____ Encrypted Storage
+ __/                        |________________|   E  |_________|
+```
+
+>User facing functions are implemented in the core module, these surface specific tasks available to the user. 
+They work with either a particular set of data or the whole set (all data in the Hive). Their responsibility is
+read and filter or read, modify and save.
+A storage adapter deals with whole sets of data (complete hives) that are delivered to the core layer or received
+for storage. Its responsibility is to use the desired component to persist the data on a custom implementation for
+both the default data set (a hashtable) or a default data definition (a script block) as well as the different 
+configuration overrides. A minimum implementation of an adapter will use complete hives for operations, a more
+refined adapter will support insert, update, and read operations over single values.
+
+### How to write an IO adapter implementation for PSConfigHive ###
+An interface is specified such that adapters can provide specific operations agreed upon
+
+Coming soon...
+
+Configuration data is layered when using overrides as follows:
+
+```
+
+  User <)  <=========================<
+              Custom Cache Overrides |
+            >------------------------^
+            | Session Overrides
+            ^------------------------<
+              Persistent Overrides   |
+            -------------------------^
+              Default Configuration
+```
+
+>When retrieving a value from the configuration a merge occurs from the multiple layers of data. Starting for the 
+default values stored in the configuration, and applying any applicable override on top where the latest override 
+value is the one actually surfaced through the user. `Set-ConfigOverride` cmdlet is capable of adding overrides at the 
+desired level whereas `Remove-ConfigOverride` removes them. Each layer has its own caracteristics:
+- Default configuration is persisted in the media defined by the assigned implementation of the storage adapter
+- Persistent overrides are persisted in the same way as the default configuration, note the default values are always
+kept
+- Session overrides are still handled by the particular adaptor and should only live while the module is loaded in the 
+session
+- Custom cache overrides validity are subject to a particular policy defined upon creation, this policy can be a time 
+policy (i.e. override is valid for an hour) or custom made by the user (takes a `[ScriptBlock]` which returns `$true` 
+or `$false`) where the user defines the conditions met to consider it valid
 
 ## Proposed List of Cmdlets ##
 
@@ -70,8 +121,8 @@ PS> . $block
 
 ### New-ConfigHive ###
 ```
-> New-ConfigHive [-Name [string]] -ConfigBlock [ScriptBlock]
-> New-ConfigHive [-Name [string]] -Config [HashTable]
+> New-ConfigHive [-Name [string]] -ConfigBlock [ScriptBlock] [-Adapter [string]]
+> New-ConfigHive [-Name [string]] -Config [HashTable] [-Adapter [string]]
 ```
 Description:
 
@@ -112,13 +163,13 @@ is of `[HashTable]` type.
 
 >Remove-ConfigHive
 
->Get-ConfigHiveValue
+>Get-ConfigValue
 
 > Get-ConfigHive
 
 > Set-ConfigOverride -Hive -Name -Value -ScopeLevel (Persistent|Session)
 
-> Get-CurrentHiveName
+> Remove-ConfigOverride
 
 ## Requirements ##
 - Relies on [PsxUtility](https://www.powershellgallery.com/packages/xUtility) if available (_recommended_)
@@ -158,7 +209,15 @@ Work items under evaluation:
 - Support session caching
 - Abastract storage layer and define a clear implementation (prototype 2 different implementations, CLI XML and Proto Buffers)
 - Configuration hives contain metadata that describe the behavior of the access/read such as persistence, permissions, etc.
-- New-ModuleConfig -Hive 'MyHive' -Config { MyModule/GetConfig }
+- Get a list of available adapters
+- Set default adapter
+- Hives need to have an associated adapter
+- Support hive migration(?)
+- Adapter data caching:
+  - When calling adapter, adapter will use implementation to retrieve data, this data can be cached in multiple ways
+  - No caching. Invoke implementation with every call, no issues with mutiple processes accessing
+  - Session caching. Read copy live for the session, might have outdated data
+  - Expiring cache. Read copy live for an amount of time or as defined by user policy
 
 ## Change List ##
 ```
