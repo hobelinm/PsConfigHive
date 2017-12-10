@@ -4,7 +4,7 @@
 # RootModule = 'PsConfigHive.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.1.2'
+ModuleVersion = '0.1.4'
 
 # ID used to uniquely identify this module
 GUID = 'afd64af8-636e-4de9-85a6-15f8af0c877a'
@@ -16,7 +16,7 @@ Author = 'Hugo Belin'
 # CompanyName = ''
 
 # Copyright statement for this module
-Copyright = '(c) Hugo Belin. All rights reserved.'
+Copyright = '(c) Hugo Belin. See LICENSE for terms.'
 
 # Description of the functionality provided by this module
 Description = 'PowerShell Configuration Manager'
@@ -55,7 +55,7 @@ PowerShellVersion = '5.0'
 # FormatsToProcess = @()
 
 # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-NestedModules = @('PsConfigHive.psm1')
+NestedModules = @('ConfigHive.psm1')
 
 # Functions to export from this module
 FunctionsToExport = @(
@@ -76,9 +76,9 @@ FunctionsToExport = @(
 
 # List of all files packaged with this module
 FileList = @(
+    '.\ConfigHive.psd1',
+    '.\ConfigHive.psm1',
     '.\LICENSE',
-    '.\PsConfigHive.psd1',
-    '.\PsConfigHive.psm1',
     '.\README.md',
     '.\Main\Get-CurrentHiveName.ps1'
 )
@@ -101,7 +101,7 @@ PrivateData = @{
         IconUri = 'https://github.com/hobelinm/PsxUtility'
 
         # ReleaseNotes of this module
-        ReleaseNotes = 'Initial Alpha Version'
+        ReleaseNotes = 'Pre-Alpha Version'
 
     } # End of PSData hashtable
 

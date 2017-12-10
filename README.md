@@ -2,7 +2,7 @@ PowerShell Config Hive
 ============
 A hive for your config needs
 
-Current Version: `0.1.2`
+Current Version: `0.1.4`
 
 ```
 Major.Minor.Build
@@ -11,49 +11,41 @@ Major.Minor.Build
   |_________________ Major ship releases
 ```
 
-PS Config Hive provides configuration assistance for other PowerShell modules, scripts, or simply for use directly
-from the command line. It allows for easy grouping, retrieval, and override of configuration settings. PS Config Hive
-caller is identified automatically using Get-PSCallStack cmdlet or manually set by the caller.
+Config Hive provides configuration tooling for other PowerShell modules, scripts, or simply for use directly
+from the command line. It allows for easy grouping, retrieval, and override of configuration settings. 
+Config Hive requires [xUtility](https://www.powershellgallery.com/packages/xUtility) module. 
+If the module is not available in the system it will be installed during prompt. 
+xUtility allows Config Hive better recovery and behavior scenarios by leveraging two features mainly:
+- Expiring cache (allows not to query the source every on every access)
+- Retry Logic (used for storage operation that are flaky)
 
 ## Features ##
-- Automatic detection of caller via Get-PSCallStack separate module configurations separately
-- Key value store with different persistence options:
-  - No persistence on read. Read every time from source configuration file
-  - Session persistence on read. Read once from configuration file, keep configuration on session
-  - Expiring cache persistence on read. Read and caches the item using the desired policy (relies on Expiring Cache cmdlets from xUtility module)
-    - Allow time specific policy
-    - Support generic read policies such that they only return a boolean result that will determine whether to process file IO read or not. Then write a script block for checking if the file has changed in order to reload a configuration
-- A basic prevention from accessing specific configuration hives to prevent errors (note that access to the configuration files themselves is different) and the concept of shared configuration objects
-- A layer model of configuration objects and configuration overrides
-  - Configuration overrides on a session scope level
-  - (In evaluation) configuration overrides on a call stack level
-- Logging/telemetry (?)
+- Extensible Key/Value store with configurable caching options
+  - Caching is based per hive and level of override
+- Multiple override levels allow fine control over the changes to configuration objects
+  - System wide, User wide, Session Wide override levels
 
 ## Design ##
-PSConfigHive is designed in layers as follows:
+ConfigHive is designed in layers as follows:
 
 ```
- __                          ________________    I   _________
-   \- Get-ConfigHive ------ |                |   N  |         |    ____ Local Disk
- -- - Get-ConfigValue ----- |                |   T  |         |---/
- -- - Get-CurrentHiveName - |  PSConfigHive  |-- E--| Storage |
- -- - Get-RegisteredHives - |     Core       |-- R--|   IO    |-------- Remote Web Service
- -- - New-ConfigHive ------ |    Module      |   F  | Adapter |
- -- - Remove-ConfigHive --- |                |   A  |         |---
- -- - Set-ConfigOVerride -- |                |   C  |         |   \____ Encrypted Storage
- __/                        |________________|   E  |_________|
+ __                          ________________        _________
+   \- Get-ConfigHive ------ |                |   I  |         |
+ -- - Get-ConfigValue ----- |                |   N  |         |    ____ Local Disk
+ -- - Get-CurrentHiveName - |                |   T  |         |---/
+ -- - Get-RegisteredHives - |  PSConfigHive  |   E  | Storage |
+ -- - New-DataStore       - |     Core       |-- R--|   IO    |
+ -- - Register-ConfigHive - |    Module      |-- F--| Adapter |-------- Remote Web Service
+ -- - Remove-ConfigHive --- |                |   A  |         |
+ -- - Set-ConfigHive ------ |                |   C  |         |---
+ -- - Set-ConfigOVerride -- |                |   E  |         |   \____ Encrypted Storage
+ __/                        |________________|      |_________|
 ```
 
->User facing functions are implemented in the core module, these surface specific tasks available to the user. 
-They work with either a particular set of data or the whole set (all data in the Hive). Their responsibility is
-read and filter or read, modify and save.
-A storage adapter deals with whole sets of data (complete hives) that are delivered to the core layer or received
-for storage. Its responsibility is to use the desired component to persist the data on a custom implementation for
-both the default data set (a hashtable) or a default data definition (a script block) as well as the different 
-configuration overrides. A minimum implementation of an adapter will use complete hives for operations, a more
-refined adapter will support insert, update, and read operations over single values.
+> User functions are listed on the left, these are exposed directly by the module. On the right the store implementations
+outlines the primary function for those as well as to how they interact with the module.
 
-### How to write an IO adapter implementation for PSConfigHive ###
+### How to write an IO adapter implementation for ConfigHive ###
 An interface is specified such that adapters can provide specific operations agreed upon
 
 Coming soon...
@@ -63,27 +55,50 @@ Configuration data is layered when using overrides as follows:
 ```
 
   User <)  <=========================<
-              Custom Cache Overrides |
+                Session Overrides     |
             >------------------------^
-            | Session Overrides
+            |     User Overrides
             ^------------------------<
-              Persistent Overrides   |
+                 System Overrides     |
             -------------------------^
-              Default Configuration
+            |  Default Configuration
+            --------------------------
 ```
 
->When retrieving a value from the configuration a merge occurs from the multiple layers of data. Starting for the 
-default values stored in the configuration, and applying any applicable override on top where the latest override 
-value is the one actually surfaced through the user. `Set-ConfigOverride` cmdlet is capable of adding overrides at the 
-desired level whereas `Remove-ConfigOverride` removes them. Each layer has its own caracteristics:
-- Default configuration is persisted in the media defined by the assigned implementation of the storage adapter
-- Persistent overrides are persisted in the same way as the default configuration, note the default values are always
-kept
-- Session overrides are still handled by the particular adaptor and should only live while the module is loaded in the 
-session
-- Custom cache overrides validity are subject to a particular policy defined upon creation, this policy can be a time 
-policy (i.e. override is valid for an hour) or custom made by the user (takes a `[ScriptBlock]` which returns `$true` 
-or `$false`) where the user defines the conditions met to consider it valid
+```
+[For each registered hive]:
+
+  ___________    ________________________    _______________
+ |  Seeded  |   | Applied       Applied  |   |   Applied    |
+ |   ____   |   |  _____         ____    |   |    ____      |
+ |  |   |\  | + |  |   |\   +    |   |\  | + |   |   |\     |
+ |  |    | ------> |    |  --->  |    | -------> |    |  =====>  Result Value
+ |  |____|  |   |  |____|        |____|  |   |   |____|     |
+ |__________|   |________________________|   |______________|
+ | Original |   | System         User    |   |   Session    |
+ Configuration  |Overrides     Overrides |   |  Overrides   |
+ |    ||    |   |   ||            ||     |   |     ||       |
+ |  Cache   |   | Cache          Cache   |   |    Cache     |
+ |    ||    |   |   ||            ||     |   |     ||       |
+ |  Policy  |   | Policy        Policy   |   |   Policy     |
+ |----------|   |------------------------|   |--------------|
+ |< Module >|   |<   Storage Adapter    >|   |< ConfigHive >|
+ |__________|   |________________________|   |______________|
+
+```
+
+> When retrieving values the module reads from the upper layers looking for the first colliding override. On each layer 
+the module interrogates the associated store for an override. The store for each specific layer is associated when 
+registering the Configuration Hive. Each store contains its own caching policy and controls their own cache according 
+to the given initialization parameters during the Hive Registration. Each Configuration Hive contains a specific instance 
+of a store for each layer amongst the available stores, therefore removing a store used on a registered Configuration Hive
+will cause issues. If no colliding override is found the original value is used. 
+There are two ways of seeding default values into a previously registered config hive:
+- Permanently, stores the values into the given store instance. This option is suitable for settings that do not change 
+often, as re-seeding values would be more more expensive this operation should be reserved for values more or less constant
+- In-memory store, allows to follow changes to original configuration values, for example further releases of scripts or 
+modules using the Config Hive which contain changes. This operation is recommended for most modules and typically is done 
+during the load of the module as it does not involve IO operations other than memory.
 
 ## Proposed List of Cmdlets ##
 
@@ -212,16 +227,35 @@ Work items under evaluation:
 - Get a list of available adapters
 - Set default adapter
 - Hives need to have an associated adapter
-- Support hive migration(?)
+- Support hive migration(v2?)
+- Logging/telemetry (v2?)
+- Automatic check for updates
 - Adapter data caching:
   - When calling adapter, adapter will use implementation to retrieve data, this data can be cached in multiple ways
   - No caching. Invoke implementation with every call, no issues with mutiple processes accessing
   - Session caching. Read copy live for the session, might have outdated data
   - Expiring cache. Read copy live for an amount of time or as defined by user policy
 
+## Metrics to Collect
+- Module Version
+- Module installed on
+- Load module event
+- Number of folders created
+- Time to load of core functions
+- Time to load of custom stores
+- Overall time to load
+- Execution time for all functions (along with their store id)
+- Number of folders created
+- Time since last run
+- Number of custom stores
+- OS Architecture
+- PS Version
+
 ## Change List ##
 ```
 
+0.1.4 - Updated pattern to support multiple OS, loading message
+0.1.3 - Renamed module, documentation update
 0.1.2 - Initial module draft, updated documentation, Get-CurrentHiveName
 0.1.1 - Updated documentation
 

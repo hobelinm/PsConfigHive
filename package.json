@@ -1,6 +1,6 @@
 {
     "name": "ps-confighive",
-    "version": "0.1.2",
+    "version": "0.1.4",
     "description": "A hive for your config needs",
     "preferGlobal": true,
     "author": "Hugo Belin",
