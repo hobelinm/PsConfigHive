@@ -2,7 +2,8 @@ PowerShell Config Hive
 ============
 A hive for your config needs
 
-Current Version: `0.2.1`
+Current Version: `1.0.0`
+Release Code Name: `2-1B`
 
 ```
 Major.Minor.Build
@@ -297,6 +298,7 @@ Work items under evaluation:
 
 ## Change List ##
 ```
+1.0.0 - CliFileStore options are not mandatory, Cli file to use can be overrided via options. First Release (2-1B)
 0.2.1 - Automatic check for updates
 0.2.0 - First functional version
 0.1.4 - Updated pattern to support multiple OS, loading message

@@ -4,25 +4,19 @@ Config Store implementation based on CliXml serialization
 
 #>
 
-# NOTE: Register additional Custom Cache Control types here
-enum CliFileStoreCacheControlTypes {
-  TimeSpan
-  ScriptBlock
-}
-
 class CliFileStore : ConfigBaseStore {
   # Static Members
   static [string]  $Name           = 'CliFileStore'
   static [Version] $Version        = [Version] '0.1.0'
   static [string]  $PolicyTypeName = 'System.xUtility.RetryPolicy'
+  static           $OptionTypes    = @([TimeSpan], [ScriptBlock], [System.IO.FileInfo])
   
   # Public variables
-  [string[]]                      $ValidCustomTypes
-  [CliFileStoreCacheControlTypes] $CacheControlType
-  [string]                        $CacheId
+  [string]      $CacheControlType
+  [string]      $CacheId
   # NOTE: Store additional custom cache control types at this level
-  [TimeSpan]                      $TimedCacheControl
-  [ScriptBlock]                   $CustomCacheControl
+  [TimeSpan]    $TimedCacheControl
+  [ScriptBlock] $CustomCacheControl
   
   # Internal members
   hidden [int] $ProcessId = $PID
@@ -39,11 +33,6 @@ class CliFileStore : ConfigBaseStore {
   
   # Constructor
   CliFileStore() : base() {
-    # Construct accepted custom types
-    $this.ValidCustomTypes = @()
-    [enum]::GetValues([CliFileStoreCacheControlTypes]) | ForEach-Object {
-      $this.ValidCustomTypes += $_.ToString()
-    }
   }
   
   # Creates a new instance of the store
@@ -57,11 +46,13 @@ class CliFileStore : ConfigBaseStore {
     $store.IsInitialized = $true
 
     # Calculate the file associated with the given Hive Name
-    $store.FilePath = $this.GetTargetFilePath($Level, $HiveName)
-
+    $store.FilePath = [string]::Empty
+    
     # Calculate cache key to use with this instance
     $store.CacheId = "{0}.{1}.{2}" -f [CliFileStore]::Name, $Level.ToString(), $HiveName
     $store.Policy = New-RetryPolicy -Policy Random -Milliseconds 5000 -Retries 3
+    $cacheLength = [TimeSpan] '0:0:5'
+    $store.SetCustomParams($cacheLength)
 
     return $store
   }
@@ -83,6 +74,11 @@ class CliFileStore : ConfigBaseStore {
       $m = 'Unable to initialize store properly, required data is not present'
       $err = New-Object ConfigHiveError -ArgumentList 'InvalidImplementation', $m
       throw($err)
+    }
+
+    if ($data.FilePath -ne $null) {
+      $file = [System.IO.FileInfo] $data.FilePath
+      $hydratedStore.SetCustomParams($file)
     }
 
     return $hydratedStore
@@ -138,7 +134,7 @@ class CliFileStore : ConfigBaseStore {
   # Determines whether custom parameters are required or not
   # @Override
   [bool] RequiresCustomParams() {
-    return $true
+    return $false
   }
 
   # Custom parameters for the store, valid data: [TimeSpan], [ScriptBlock]
@@ -150,26 +146,35 @@ class CliFileStore : ConfigBaseStore {
       throw($err)
     }
 
-    $pType = $CustomParams.GetType().Name
-    if ($this.ValidCustomTypes -contains $pType) {
+    $pType = $CustomParams.GetType()
+    if ([CliFileStore]::OptionTypes -contains $pType) {
       # NOTE: Add custom supported types here
-      if ($pType -eq 'TimeSpan') {
+      if ($pType -eq [TimeSpan]) {
         $this.TimedCacheControl = $CustomParams
+        $this.CacheControlType = $pType.ToString()
       }
-      elseif ($pType -eq 'ScriptBlock') {
+      elseif ($pType -eq [ScriptBlock]) {
         $this.CustomCacheControl = $CustomParams
+        $this.CacheControlType = $pType.ToString()
+      }
+      elseif ($pType -eq [System.IO.FileInfo]) {
+        $file = [System.IO.FileInfo] $CustomParams
+        if ($file.Extension -ne '.xml') {
+          $m = "Cannot use a file with extension '{0}' for serialization, must use '.xml'" -f $file.Extension
+          $err = New-Object ConfigHiveError -ArgumentList 'InvalidArgument', $m
+          throw($err)
+        }
+
+        $this.FilePath = $file.FullName
       }
       else {
         $m = "Support for Cache Control Type '{0}' is not implemented appropriately" -f $pType
         $err = New-Object ConfigHiveError -ArgumentList 'InvalidImplementation', $m
         throw($err)
       }
-
-      $this.CacheControlType = [enum]::GetValues([CliFileStoreCacheControlTypes]) | Where-Object { 
-        $_.ToString() -eq $pType }
     }
     else {
-      $cts = $this.ValidCustomTypes -join ', '
+      $cts = [CliFileStore]::OptionTypes -join ', '
       $m = "Invalid Custom Parameter of type '{0}', valid values are {1}" -f $pType, $cts
       $err = New-Object ConfigHiveError -ArgumentList 'InvalidArgument', $m
       throw($err)
@@ -191,6 +196,10 @@ class CliFileStore : ConfigBaseStore {
       Warn -Message 'Store has been previously initialized'
     }
 
+    if ($this.FilePath -eq [string]::Empty) {
+      $this.FilePath = $this.GetTargetFilePath($this.StoreLevel, $this.HiveName)
+    }
+
     Invoke-ScriptBlockWithRetry -Context { $Values | Export-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
     $this.ResetCache()
   }
@@ -199,7 +208,7 @@ class CliFileStore : ConfigBaseStore {
   [void] ResetCache() {
     $p = @{}
     switch ($this.CacheControlType) {
-      ([CliFileStoreCacheControlTypes]::TimeSpan) {
+      ([TimeSpan].ToString()) {
         $p = @{
           Key            = $this.CacheId
           ItemDefinition = $this.GetFromSource
@@ -208,7 +217,7 @@ class CliFileStore : ConfigBaseStore {
         }
       }
 
-      ([CliFileStoreCacheControlTypes]::ScriptBlock) {
+      ([ScriptBlock].ToString()) {
         $p = @{
           Key            = $this.CacheId
           ItemDefinition = $this.GetFromSource
@@ -260,6 +269,10 @@ class CliFileStore : ConfigBaseStore {
       throw($err)
     }
 
+    if ($this.FilePath -eq [string]::Empty) {
+      $this.FilePath = $this.GetTargetFilePath($this.StoreLevel, $this.HiveName)
+    }
+
     # Read from source, read from source in case data changed
     $currentData = [HashTable](. $this.GetFromSource)
     $currentData[$Key] = $Value
@@ -274,6 +287,10 @@ class CliFileStore : ConfigBaseStore {
       $m = "[Store.{0}] Attempt to use an uninitialized store" -f [CliFileStore]::Name
       $err = New-Object ConfigHiveError -ArgumentList 'UninitializedStore', $m
       throw($err)
+    }
+
+    if ($this.FilePath -eq [string]::Empty) {
+      $this.FilePath = $this.GetTargetFilePath($this.StoreLevel, $this.HiveName)
     }
 
     # Read from source in case data changed
@@ -330,11 +347,16 @@ class CliFileStore : ConfigBaseStore {
     $serialData = @{}
     $serialData['HiveName'] = $this.HiveName
     $serialData['Level'] = ([string] $this.StoreLevel)
-    if ($this.CacheControlType -eq [CliFileStoreCacheControlTypes]::TimeSpan) {
+
+    if ($this.FilePath -ne [string]::Empty) {
+      $serialData['FilePath'] = ([System.IO.FileInfo] $this.FilePath).FullName
+    }
+
+    if ($this.CacheControlType -eq [TimeSpan].ToString()) {
       $controlStr = $this.TimedCacheControl.ToString()
       $serialData['TimedCacheControl'] = $controlStr
     }
-    elseif ($this.CacheControlType -eq [CliFileStoreCacheControlTypes]::ScriptBlock) {
+    elseif ($this.CacheControlType -eq [ScriptBlock].ToString()) {
       $controlStr = $this.CustomCacheControl.ToString()
       $serialData['CustomCacheControl'] = $controlStr
     }

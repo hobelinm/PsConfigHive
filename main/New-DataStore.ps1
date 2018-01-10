@@ -43,6 +43,18 @@ system level, the running process must have access to the shared location design
 access to the system otherwise the instance of the new store and/or operations with it may fail, it is responsiblity
 of the user to ensure the appropriate permission levels are used when using this option
 
+.EXAMPLE
+New-DataStore -HiveName 'Tesat' -StoreName 'CliFileStore'
+
+Creates a file serialized store with default options ([TimeSpan] '0:0:5') which are now optional
+
+.EXAMPLE
+New-DataStore -HiveName 'Test' -StoreName 'CliFileStore' -StoreLevel 'System' -Options ([System.IO.FileInfo] '/tmp/store.xml')
+
+Creates a file serialized store for Level Store 'System' but overrides the file to use for this level, to use the one given
+in the options, note that for this option to work the input type must be [System.IO.FileInfo] and the file extension must
+be .xml
+
 .NOTES
 Certain operations might require admin privileges. In particular System, Origin level stores on CliFileStore are known
 for this requirement
