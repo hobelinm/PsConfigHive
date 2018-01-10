@@ -29,9 +29,17 @@ $Script:DefaultConfig['Module.StoresPath'] = . {
 
 $Script:DefaultConfig['Module.Dependencies'] = @('xUtility')
 $Script:DefaultConfig['Module.HiveMetaDirectory'] = 'HiveMeta'
+$Script:DefaultConfig['Module.PackageVersionUrl'] = 'https://raw.githubusercontent.com/hobelinm/PsConfigHive/master/package.json'
 
 <####################################
 # Default overridable settings
 ######################################>
 $Script:BaseConfigOverridable = @{}
 $Script:BaseConfigOverridable['Module.AccentColor'] = 'Cyan'
+$Script:BaseConfigOverridable['Module.UpdateFile'] = . {
+  $temp = Get-TempPath
+  $updateFile = Join-Path -Path $temp -ChildPath 'UpdateCheck.xml'
+  Write-Output $updateFile
+}
+
+$Script:BaseConfigOverridable['Module.UpdateCheckSpan'] = [TimeSpan] '30.00:00:00'

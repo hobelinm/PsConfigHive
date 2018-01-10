@@ -99,6 +99,40 @@ if (@(Get-RegisteredHives) -notcontains 'ConfigHive') {
 # Seed ConfigHive Origin store
 Initialize-DataStore -HiveName 'ConfigHive' -Level 'Origin' -Data $Script:BaseConfigOverridable
 
-# TODO: Check for updates
+# Check for updates
+$checkVersionFile = GetConfig('Module.UpdateFile')
+$checkVersion = $false
+if (-not (Test-Path $checkVersionFile)) {
+  $checkVersion = $true
+}
+else {
+  $checkSpan = [TimeSpan] (GetConfig('Module.UpdateCheckSpan'))
+  $versionCheck = [DateTime] (Import-Clixml -Path $checkVersionFile)
+  if ($versionCheck.Add($checkSpan) -le (Get-Date)) {
+    $checkVersion = $true
+  }
+}
+
+$warnVersion = $false
+$latestVersion = $null
+if ($checkVersion) {
+  $thisVersion = [Version] (GetConfig('Module.Version'))
+  $versionUrl = GetConfig('Module.PackageVersionUrl')
+  $response = Invoke-WebRequest -Uri $versionUrl
+  $package = $response.Content | ConvertFrom-Json
+  $latestVersion = [Version] $package.version
+  if ($latestVersion -gt $thisVersion) {
+    $warnVersion = $true
+  }
+  else {
+    (Get-Date) | Export-Clixml -Path $checkVersionFile
+  }
+}
+
+if ($warnVersion) {
+  Write-Host ''
+  $m = "Update to v{0} to get access to the latest features" -f $latestVersion
+  Warn -Message $m
+}
 
 $Script:ModuleLoadComplete = $true

@@ -2,7 +2,7 @@ PowerShell Config Hive
 ============
 A hive for your config needs
 
-Current Version: `0.2.0`
+Current Version: `0.2.1`
 
 ```
 Major.Minor.Build
@@ -279,10 +279,6 @@ Work items under evaluation:
 - Register-ConfigHive (Add option for register globally v2)
 - Cli File Store to configure the paths where to save files according to their level
 
-## TO DO ##
-- Automatic check for updates
-- Documentation for all cmdlets
-
 ## Metrics to Collect
 - Module Version
 - Module installed on
@@ -301,6 +297,7 @@ Work items under evaluation:
 
 ## Change List ##
 ```
+0.2.1 - Automatic check for updates
 0.2.0 - First functional version
 0.1.4 - Updated pattern to support multiple OS, loading message
 0.1.3 - Renamed module, documentation update

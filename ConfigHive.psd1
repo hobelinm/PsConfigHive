@@ -4,7 +4,7 @@
 # RootModule = 'PsConfigHive.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.2.0'
+ModuleVersion = '0.2.1'
 
 # ID used to uniquely identify this module
 GUID = 'afd64af8-636e-4de9-85a6-15f8af0c877a'
