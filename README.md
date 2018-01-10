@@ -278,7 +278,6 @@ Work items under evaluation:
 - Git repository for stores (v2?)
 - Set read-only values for a store (v2?)
 - Register-ConfigHive (Add option for register globally v2)
-- Cli File Store to configure the paths where to save files according to their level
 
 ## Metrics to Collect
 - Module Version
