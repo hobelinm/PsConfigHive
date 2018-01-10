@@ -13,6 +13,9 @@ function Print {
     [System.ConsoleColor] $Accent = (GetConfig('Module.AccentColor')),
 
     [Parameter()]
+    [System.ConsoleColor] $MessageColor,
+
+    [Parameter()]
     [switch] $NoNewLine = $false
   )
 
@@ -31,12 +34,45 @@ function Print {
     }
   }
   
-  if ($NoNewLine) {
-    Write-Host "] $Message" -NoNewline
+  $p = @{
+    'Object'          = "] $Message"
+    'NoNewLine'       = $NoNewLine
   }
-  else {
-    Write-Host "] $Message"
+
+  if ($MessageColor -ne $null) {
+    Write-Host '] ' -NoNewline
+    $p['Object'] = $Message
+    $p['ForegroundColor'] = $MessageColor
   }
+
+  Write-Host @p
+}
+
+# Pretty warn
+function Warn {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [string] $Message
+  )
+
+  $p = @{
+    'Accent'       = 'Yellow'
+    'MessageColor' = 'Yellow'
+    'Message'      = 'Warning: '
+    'NoNewLine'    = $true
+  }
+
+  $caller = (Get-PSCallStack)[1].FunctionName
+  if ($caller -ne '<ScriptBlock>') {
+    $header = GetConfig('Module.BaseName')
+    $header = "{0}.{1}" -f $header, $caller
+    $p['Header'] = $header
+  }
+
+  Print @p
+  Write-Host $Message
 }
 
 # Gets temp path according to the host
@@ -80,7 +116,7 @@ function Get-AppDataPath {
     [switch] $BasePath = $false
     )
     
-    $location = ''
+  $location = ''
   if (isWindows) {
     $location = $env:LOCALAPPDATA
   }
@@ -99,6 +135,47 @@ function Get-AppDataPath {
     }
   }
   
+  Write-Output $location
+}
+
+# Gets the path of the Hive Metadata
+function Get-HiveMetaPath {
+  [CmdletBinding()]
+  param()
+
+  $localAppData = Get-AppDataPath
+  $metasDirectory = GetConfig('Module.HiveMetaDirectory')
+  $metasPath = Join-Path -Path $localAppData -ChildPath $metasDirectory
+  if (-not (Test-Path $metasPath)) {
+    New-Item -ItemType Directory -Path $metasPath | Write-Verbose
+  }
+
+  Write-Output $metasPath
+}
+
+# Gets Program Data folder
+function Get-ProgramDataPath {
+  [CmdletBinding()]
+  param()
+
+  $ErrorActionPreference = 'Stop'
+  $location = ''
+  if (isWindows) {
+    $location = $env:ProgramData
+    if ($location -eq $null) {
+      $location = Join-Path -Path $env:HOMEDRIVE -ChildPath 'ProgramData'
+    }
+  }
+  else {
+    $location = '/var/lib/'
+  }
+
+  $baseName = GetConfig('Module.BaseName')
+  $location = Join-Path -Path $location -ChildPath $baseName
+  if (-not (Test-Path $location)) {
+    New-Item -ItemType Directory -Path $location | Write-Verbose
+  }
+
   Write-Output $location
 }
 
@@ -148,6 +225,7 @@ function isLinux {
   Write-Output $false
 }
 
+# Module configuration reader
 function GetConfig {
   [CmdletBinding()]
   param(
@@ -157,7 +235,6 @@ function GetConfig {
   )
 
   $ErrorActionPreference = 'Stop'
-  # TODO:
   # Check first on non-overridable defaults
   $constConfig = [HashTable] $Script:DefaultConfig
   if ($constConfig.Keys -contains $Key) {
@@ -165,12 +242,78 @@ function GetConfig {
   }
   elseif ($Script:ModuleLoadComplete -eq $true) {
     # Use service if we have user configurable options if available
-    $err = New-Object ConfigHiveError -ArgumentList 'NotImplementedException', 'This option is not implemented yet'
-    throw($err.ToString())
+    Write-Output (Get-ConfigValue -Key $Key -HiveName 'ConfigHive')
   }
   else {
     # otherwise use default overridable options
     $baseConfig = [HashTable] $Script:BaseConfigOverridable
     Write-Output $baseConfig[$Key]
   }
+}
+
+# Loads a configuration hive from metadata
+function LoadHive {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [string] $HiveName
+  )
+
+  $ErrorActionPreference = 'Stop'
+  $hivesMeta = Get-HiveMetaPath
+  $targetHiveMeta = Join-Path -Path $hivesMeta -ChildPath ("{0}.xml" -f $HiveName)
+  if (-not (Test-Path $targetHiveMeta)) {
+    $m = "Config Hive with name '{0}' was not found" -f $HiveName
+    $err = New-Object ConfigHiveError -ArgumentList 'HiveMetaNotFound', $m
+    throw($err)
+  }
+  
+  $policy = New-RetryPolicy -Policy Random -Milliseconds 5000 -Retries 3
+  $hiveMeta = [HashTable] (Invoke-ScriptBlockWithRetry -Context { Import-Clixml -Path $targetHiveMeta } -RetryPolicy $policy)
+  
+  # Validate existing properties 
+  $metaStructure = @(
+    'HiveName', 
+    'OriginName', 
+    'OriginData', 
+    'SystemName', 
+    'SystemData', 
+    'UserName', 
+    'UserData',
+    'SessionName',
+    'SessionData')
+  $metaStructure | ForEach-Object {
+    $prop = $_
+    if ($hiveMeta.Keys -notcontains $prop) {
+      $m = "Hive metadata is not in the expected format, missing property: '{0}'" -f $prop
+      $err = New-Object ConfigHiveError -ArgumentList 'CorrupedHiveMetadata', $m
+      throw($err)
+    }
+  } 
+  
+  if ($hiveMeta['HiveName'] -ne $HiveName) {
+    $m = "Attempted to retrieve config hive metadata for '{0}' but got '{1}'" -f $HiveName, $hiveMeta['HiveName']
+    $err = New-Object ConfigHiveError -ArgumentList 'CorruptedHiveMetadata', $m
+    throw($err)
+  }
+
+  $instanceHiveMeta = @{
+    'HiveName' = $HiveName
+    'Origin'   = (New-DataStore -StoreName $hiveMeta['OriginName'] -SerializedStoreData $hiveMeta['OriginData'])
+    'System'   = (New-DataStore -StoreName $hiveMeta['SystemName'] -SerializedStoreData $hiveMeta['SystemData'])
+    'User'     = (New-DataStore -StoreName $hiveMeta['UserName'] -SerializedStoreData $hiveMeta['UserData'])
+    'Session'  = (New-DataStore -StoreName $hiveMeta['SessionName'] -SerializedStoreData $hiveMeta['SessionData'])
+  }
+
+  $Script:ActiveConfigHives[$HiveName] = [PSCustomObject] $instanceHiveMeta
+}
+
+# Describes the levels at which stores can operate, this helps the stores to differentiate each other within the same 
+# Config Hive definition as well as to take specific actions for different levels i.e. System Level files vs User level
+enum CacheStoreLevel {
+  Origin
+  System
+  User
+  Session
 }

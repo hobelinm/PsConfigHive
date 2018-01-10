@@ -4,7 +4,7 @@
 # RootModule = 'PsConfigHive.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.1.4'
+ModuleVersion = '0.2.0'
 
 # ID used to uniquely identify this module
 GUID = 'afd64af8-636e-4de9-85a6-15f8af0c877a'
@@ -59,7 +59,18 @@ NestedModules = @('ConfigHive.psm1')
 
 # Functions to export from this module
 FunctionsToExport = @(
-    'Get-CurrentHiveName'
+    'Get-ConfigHive',
+    'Get-ConfigKeys',
+    'Get-ConfigValue',
+    'Get-CurrentHiveName',
+    'Get-CustomStorePath',
+    'Get-RegisteredHives',
+    'Initialize-DataStore',
+    'New-DataStore',
+    'Register-ConfigHive'
+    'Remove-ConfigValue',
+    'Set-ConfigValue',
+    'Unregister-ConfigHive'
 )
 
 # Cmdlets to export from this module
@@ -79,8 +90,23 @@ FileList = @(
     '.\ConfigHive.psd1',
     '.\ConfigHive.psm1',
     '.\LICENSE',
+    '.\package.json',
     '.\README.md',
-    '.\Main\Get-CurrentHiveName.ps1'
+    '.\main\config.ps1',
+    '.\main\ConfigHiveError.ps1',
+    '.\main\Get-ConfigHive.ps1',
+    '.\main\Get-ConfigKeys.ps1',
+    '.\main\Get-ConfigValue.ps1',
+    '.\main\Get-CustomStorePath.ps1',
+    '.\main\Get-CurrentHiveName.ps1',
+    '.\main\Get-RegisteredHives.ps1',
+    '.\main\Initialize-DataStore.ps1',
+    '.\main\New-DataStore.ps1',
+    '.\main\Register-ConfigHive.ps1',
+    '.\main\Remove-ConfigValue.ps1',
+    '.\main\Set-ConfigValue.ps1',
+    '.\main\Unregister-ConfigHive.ps1',
+    '.\main\util.ps1'
 )
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
@@ -101,7 +127,7 @@ PrivateData = @{
         IconUri = 'https://github.com/hobelinm/PsxUtility'
 
         # ReleaseNotes of this module
-        ReleaseNotes = 'Pre-Alpha Version'
+        ReleaseNotes = 'First functional version'
 
     } # End of PSData hashtable
 

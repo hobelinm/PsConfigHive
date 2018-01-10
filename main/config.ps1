@@ -17,6 +17,18 @@ $Script:DefaultConfig['Module.Version'] = [Version] (. {
 })
 
 $Script:DefaultConfig['Module.WorkPath'] = Get-AppDataPath
+$Script:DefaultConfig['Module.StoresPath'] = . {
+  $appData = Get-AppDataPath
+  $storesPath = Join-Path -Path $appData -ChildPath 'stores'
+  if (-not (Test-Path $storesPath)) {
+    New-Item -ItemType Directory -Path $storesPath | Write-Verbose
+  }
+
+  Write-Output $storesPath
+}
+
+$Script:DefaultConfig['Module.Dependencies'] = @('xUtility')
+$Script:DefaultConfig['Module.HiveMetaDirectory'] = 'HiveMeta'
 
 <####################################
 # Default overridable settings
