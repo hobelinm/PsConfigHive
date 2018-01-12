@@ -314,6 +314,10 @@ class CliFileStore : ConfigBaseStore {
       throw($err)
     }
 
+    if ($this.FilePath -eq [string]::Empty) {
+      $this.FilePath = $this.GetTargetFilePath($this.StoreLevel, $this.HiveName)
+    }
+
     $currentData = [HashTable] (Get-ExpiringCacheItem -Key $this.CacheId)
     return $currentData.Keys
   }
