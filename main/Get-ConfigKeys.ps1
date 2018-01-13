@@ -16,6 +16,11 @@ Get-ConfigKeys -HiveName 'MyConfigHive' -Level 'User'
 
 Returns the keys stored at 'User' level/store
 
+.EXAMPLE
+Get-ConfigKeys -HiveName 'MyConfigHive' -Key 'MyKey'
+
+If the specified key is found in the given config hive it is returned
+
 .NOTES
 Certain operations might require admin privileges. In particular System, Origin level stores on CliFileStore are known
 for this requirement
@@ -29,6 +34,11 @@ function Get-ConfigKeys {
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [string] $HiveName,
+
+    # Key to search for
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $Key = [string]::Empty,
 
     # Level to list keys from
     [Parameter()]
@@ -64,7 +74,12 @@ function Get-ConfigKeys {
       throw($err)
     }
 
-    Write-Output $levelStore.GetKeys()
+    if ($Key -eq [string]::Empty) {
+      Write-Output $levelStore.GetKeys()
+      return
+    }
+
+    Write-Output ($levelStore.GetKeys() | Where-Object { $_ -like $Key })
     return
   }
 
@@ -75,5 +90,10 @@ function Get-ConfigKeys {
     $keys += $testStore.GetKeys()
   }
 
-  Write-Output ($keys | Select-Object -Unique)
+  if ($Key -eq [string]::Empty) {
+    Write-Output ($keys | Select-Object -Unique)
+  }
+  else {
+    Write-Output ($keys | Select-Object -Unique | Where-Object { $_ -like $Key } )
+  }
 }
