@@ -13,7 +13,12 @@ for this requirement
 
 function Get-RegisteredHives {
   [CmdletBinding()]
-  param()
+  param(
+    # Name of the Registered Hive
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $Name = ''
+  )
 
   $ErrorActionPreference = 'Stop'
   $hivesMeta = Get-HiveMetaPath
@@ -22,5 +27,9 @@ function Get-RegisteredHives {
     $registeredHives += $_.BaseName
   }
 
-  Write-Output $registeredHives
+  if ('' -ne $Name) {
+    $registeredHives | Where-Object { $_ -eq $Name } | Write-Output
+  } else {
+    Write-Output $registeredHives
+  }
 }

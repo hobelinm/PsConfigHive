@@ -2,7 +2,7 @@ PowerShell Config Hive
 ============
 A hive for your config needs
 
-Current Version: `1.0.2`
+Current Version: `1.0.3`
 Release Code Name: `2-1B`
 
 ```
@@ -297,6 +297,7 @@ Work items under evaluation:
 
 ## Change List ##
 ```
+1.0.3 - Updated GetAppDataPath to avoid coliding with xUtility/Get-AppDataPath
 1.0.2 - Get-ConfigKeys to accept [string] $Key to filter for a specific key
 1.0.1 - Fixed issue with [CliFileStore]::GetKeys() that doest not initialize Cli file before use
 1.0.0 - CliFileStore options are not mandatory, Cli file to use can be overrided via options. First Release (2-1B)

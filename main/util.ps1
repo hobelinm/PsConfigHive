@@ -109,12 +109,12 @@ function Get-TempPath {
 }
 
 # Returns the app data directory for each OS
-function Get-AppDataPath {
+function GetAppDataPath {
   [CmdletBinding()]
   param(
     [Parameter()]
     [switch] $BasePath = $false
-    )
+  )
     
   $location = ''
   if (isWindows) {
@@ -128,7 +128,7 @@ function Get-AppDataPath {
   }
   
   if (-not $BasePath) {
-    $baseName = GetConfig('Module.BaseName')
+    $baseName = 'ConfigHive'
     $location = Join-Path -Path $location -ChildPath $baseName
     if (-not (Test-Path $location)) {
       New-Item -ItemType Directory -Path $location | Write-Verbose
@@ -143,8 +143,8 @@ function Get-HiveMetaPath {
   [CmdletBinding()]
   param()
 
-  $localAppData = Get-AppDataPath
-  $metasDirectory = GetConfig('Module.HiveMetaDirectory')
+  $localAppData = GetAppDataPath
+  $metasDirectory = 'HiveMeta'
   $metasPath = Join-Path -Path $localAppData -ChildPath $metasDirectory
   if (-not (Test-Path $metasPath)) {
     New-Item -ItemType Directory -Path $metasPath | Write-Verbose
@@ -170,7 +170,7 @@ function Get-ProgramDataPath {
     $location = '/var/lib/'
   }
 
-  $baseName = GetConfig('Module.BaseName')
+  $baseName = 'ConfigHive'
   $location = Join-Path -Path $location -ChildPath $baseName
   if (-not (Test-Path $location)) {
     New-Item -ItemType Directory -Path $location | Write-Verbose
@@ -185,7 +185,7 @@ function Get-StorePath {
   param()
 
   $ErrorActionPreference = 'Stop'
-  $appData = Get-AppDataPath
+  $appData = GetAppDataPath
   $storePathFolder = GetConfig('Module.StorePath.BaseName')
   $storesPath = Join-Path -Path $appData -ChildPath $storePathFolder
   if (-not (Test-Path $storesPath)) {
@@ -200,7 +200,7 @@ function isWindows {
   [CmdletBinding()]
   param()
 
-  if ($PSVersionTable.OS -eq $null -or $PSVersionTable.OS.Contains('Windows')) {
+  if ($null -eq $PSVersionTable.OS -or $PSVersionTable.OS.Contains('Windows')) {
     Write-Output $true
   }
   else {
@@ -269,8 +269,9 @@ function LoadHive {
     throw($err)
   }
   
-  $policy = New-RetryPolicy -Policy Random -Milliseconds 5000 -Retries 3
-  $hiveMeta = [HashTable] (Invoke-ScriptBlockWithRetry -Context { Import-Clixml -Path $targetHiveMeta } -RetryPolicy $policy)
+  #$policy = New-RetryPolicy -Policy Random -Milliseconds 5000 -Retries 3
+  #$hiveMeta = [HashTable] (Invoke-ScriptBlockWithRetry -Context { Import-Clixml -Path $targetHiveMeta } -RetryPolicy $policy)
+  $hiveMeta = Import-Clixml -Path $targetHiveMeta
   
   # Validate existing properties 
   $metaStructure = @(

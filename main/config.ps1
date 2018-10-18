@@ -16,9 +16,9 @@ $Script:DefaultConfig['Module.Version'] = [Version] (. {
   Write-Output $manifestData.ModuleVersion
 })
 
-$Script:DefaultConfig['Module.WorkPath'] = Get-AppDataPath
+$Script:DefaultConfig['Module.WorkPath'] = GetAppDataPath
 $Script:DefaultConfig['Module.StoresPath'] = . {
-  $appData = Get-AppDataPath
+  $appData = GetAppDataPath
   $storesPath = Join-Path -Path $appData -ChildPath 'stores'
   if (-not (Test-Path $storesPath)) {
     New-Item -ItemType Directory -Path $storesPath | Write-Verbose

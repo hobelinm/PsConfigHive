@@ -25,7 +25,8 @@ class CliFileStore : ConfigBaseStore {
   hidden [ScriptBlock] $GetFromSource = {
     $data = @{}
     if ((Test-Path $this.FilePath)) {
-      $data = Invoke-ScriptBlockWithRetry -Context { Import-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
+      $data = Import-Clixml -Path $this.FilePath
+      #$data = Invoke-ScriptBlockWithRetry -Context { Import-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
     }
 
     Write-Output $data
@@ -50,7 +51,7 @@ class CliFileStore : ConfigBaseStore {
     
     # Calculate cache key to use with this instance
     $store.CacheId = "{0}.{1}.{2}" -f [CliFileStore]::Name, $Level.ToString(), $HiveName
-    $store.Policy = New-RetryPolicy -Policy Random -Milliseconds 5000 -Retries 3
+    #$store.Policy = New-RetryPolicy -Policy Random -Milliseconds 5000 -Retries 3
     $cacheLength = [TimeSpan] '0:0:5'
     $store.SetCustomParams($cacheLength)
 
@@ -200,7 +201,8 @@ class CliFileStore : ConfigBaseStore {
       $this.FilePath = $this.GetTargetFilePath($this.StoreLevel, $this.HiveName)
     }
 
-    Invoke-ScriptBlockWithRetry -Context { $Values | Export-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
+    #Invoke-ScriptBlockWithRetry -Context { $Values | Export-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
+    $Values | Export-Clixml -Path $this.FilePath
     $this.ResetCache()
   }
 
@@ -233,7 +235,7 @@ class CliFileStore : ConfigBaseStore {
       }
     }
 
-    Add-ExpiringCacheItem @p
+    #Add-ExpiringCacheItem @p
   }
 
   # Gets a value from the store
@@ -245,7 +247,8 @@ class CliFileStore : ConfigBaseStore {
       throw($err)
     }
 
-    $data = [HashTable] (Get-ExpiringCacheItem -Key $this.CacheId)
+    #$data = [HashTable] (Get-ExpiringCacheItem -Key $this.CacheId)
+    $data = [HashTable] (. $this.GetFromSource)
     if (-not ($data.Keys -contains $Key)) {
       $m = "[{0}] Store does not contain key '{1}'" -f $this.StoreName, $Key
       $err = New-Object ConfigHiveError -ArgumentList 'ValueNotFound', $m
@@ -276,7 +279,8 @@ class CliFileStore : ConfigBaseStore {
     # Read from source, read from source in case data changed
     $currentData = [HashTable](. $this.GetFromSource)
     $currentData[$Key] = $Value
-    Invoke-ScriptBlockWithRetry -Context { $currentData | Export-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
+    #Invoke-ScriptBlockWithRetry -Context { $currentData | Export-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
+    $currentData | Export-Clixml -Path $this.FilePath
     $this.ResetCache()
   }
 
@@ -297,7 +301,8 @@ class CliFileStore : ConfigBaseStore {
     $data = [HashTable](. $this.GetFromSource)
     if ($data.Keys -ccontains $Key) {
       $data.Remove($Key)
-      Invoke-ScriptBlockWithRetry -Context { $data | Export-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
+      #Invoke-ScriptBlockWithRetry -Context { $data | Export-Clixml -Path $this.FilePath } -RetryPolicy $this.Policy
+      $data | Export-Clixml -Path $this.FilePath
       $this.ResetCache()
     }
     else {
@@ -318,7 +323,8 @@ class CliFileStore : ConfigBaseStore {
       $this.FilePath = $this.GetTargetFilePath($this.StoreLevel, $this.HiveName)
     }
 
-    $currentData = [HashTable] (Get-ExpiringCacheItem -Key $this.CacheId)
+    #$currentData = [HashTable] (Get-ExpiringCacheItem -Key $this.CacheId)
+    $currentData = [HashTable] (. $this.GetFromSource)
     return $currentData.Keys
   }
 
